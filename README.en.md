@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/chengzhi43/dsh-file/releases"><img alt="version" src="https://img.shields.io/badge/version-0.2.1-0969da?style=flat" /></a>
+  <a href="https://github.com/chengzhi43/dsh-file/releases"><img alt="version" src="https://img.shields.io/badge/version-0.2.2-0969da?style=flat" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
   <img alt="DeepSeek Harness" src="https://img.shields.io/badge/DeepSeek%20Harness-plugin-4dabf7?style=flat" />
   <a href="https://github.com/chengzhi43/dsh-file"><img alt="stars" src="https://img.shields.io/github/stars/chengzhi43/dsh-file?style=flat&label=stars" /></a>
@@ -73,7 +73,7 @@ dsh plugin --profile web add @rose43/dsh-file
 Or download the tarball from [Releases](https://github.com/chengzhi43/dsh-file/releases) and install it locally (use `--profile desktop` for the desktop app):
 
 ```sh
-dsh plugin --profile web add ./rose43-dsh-file-0.2.1.tgz
+dsh plugin --profile web add ./rose43-dsh-file-0.2.2.tgz
 ```
 
 ### Configuration

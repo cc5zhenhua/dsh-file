@@ -40,6 +40,7 @@ export interface TreeRef {
 interface FileTreeProps {
   remote: FileManagerRemote;
   root: string;
+  filter: string;
   onOpenFile: (path: string) => void;
   onDelete: (path: string) => void;
   /** Fired after a successful inline rename so the panel can retitle tabs. */
@@ -49,7 +50,7 @@ interface FileTreeProps {
 }
 
 export const FileTree = forwardRef<TreeRef, FileTreeProps>(function FileTree(
-  { remote, root, onOpenFile, onDelete, onRenamed, onNotice },
+  { remote, root, filter, onOpenFile, onDelete, onRenamed, onNotice },
   ref,
 ) {
   const [expanded, setExpanded] = useState<Record<string, DirNode>>({ [root]: { path: root, entries: null } });
@@ -58,6 +59,57 @@ export const FileTree = forwardRef<TreeRef, FileTreeProps>(function FileTree(
   const [rev, setRev] = useState(0); // bump to reload the root
   /** Paths known to be directories (populated while rendering entries). */
   const dirPaths = useRef<Set<string>>(new Set());
+  /** Live mirror of `expanded` so the filter walk reads fresh cache without retriggering itself. */
+  const expandedRef = useRef<Record<string, DirNode>>(expanded);
+  const [matches, setMatches] = useState<{ path: string; isDir: boolean }[] | null>(null);
+
+  const query = filter.trim().toLowerCase();
+
+  // When a filter is active, recursively walk the tree and collect matching
+  // nodes. We cache each directory listing (in a ref mirror of `expanded`) to
+  // avoid refetching, expanding lazily-loaded subtrees on demand as the walk
+  // proceeds. The mirror keeps the effect self-contained: it can write fetched
+  // listings back into state for the normal tree view without depending on
+  // `expanded` (which would retrigger the walk on every write).
+  useEffect(() => {
+    if (query === '') {
+      setMatches(null);
+      return;
+    }
+    let cancelled = false;
+    setMatches([]);
+    const walk = async (dirPath: string): Promise<void> => {
+      let entries: FileEntry[];
+      const cached = expandedRef.current[dirPath];
+      if (cached?.entries !== null && cached?.entries !== undefined) {
+        entries = cached.entries;
+      } else {
+        try {
+          const value = unwrap(await remote.listDir(dirPath));
+          entries = value.entries;
+          if (!cancelled) {
+            expandedRef.current = { ...expandedRef.current, [dirPath]: { path: dirPath, entries } };
+            setExpanded(expandedRef.current);
+          }
+        } catch {
+          return;
+        }
+      }
+      for (const entry of entries) {
+        if (cancelled) return;
+        const full = `${dirPath.replace(/\/$/, '')}/${entry.name}`;
+        if (entry.name.toLowerCase().includes(query)) {
+          setMatches((prev) => (prev === null ? prev : [...prev, { path: full, isDir: entry.type === 'directory' }]));
+        }
+        if (entry.type === 'directory') await walk(full);
+      }
+    };
+    void walk(root);
+    return () => { cancelled = true; };
+  }, [query, root, remote]);
+
+  // Keep the ref mirror in sync when the tree mutates `expanded` for other reasons.
+  useEffect(() => { expandedRef.current = expanded; }, [expanded]);
 
   /** Parent directory of a workspace path (falls back to root). */
   const parentOf = useCallback(
@@ -260,7 +312,36 @@ export const FileTree = forwardRef<TreeRef, FileTreeProps>(function FileTree(
 
   return (
     <div className="dshf-tree-scroll">
-      {node === undefined ? null : node.entries === null ? (
+      {matches !== null ? (
+        matches.length === 0 ? (
+          <div className="dshf-tree-hint">{query === '' ? '输入关键字搜索' : '无匹配结果'}</div>
+        ) : (
+          <div className="dshf-tree-list">
+            {matches.map(({ path: full, isDir }) => (
+              <div
+                key={full}
+                className={cx('dshf-node', selected === full && 'dshf-selected')}
+                style={{ paddingLeft: '8px' }}
+                onClick={() => {
+                  setSelected(full);
+                  if (!isDir) onOpenFile(full);
+                }}
+                onDoubleClick={() => {
+                  if (!isDir && selected === full) onOpenFile(full);
+                }}
+                title={full}
+              >
+                <span className={cx('dshf-icon', isDir ? 'dshf-icon-dir' : 'dshf-icon-file')}>{isDir ? '📁' : '📄'}</span>
+                <span className="dshf-name">{full.slice(root.length).replace(/^\/+/, '')}</span>
+                <span className="dshf-node-actions">
+                  <button type="button" className="dshf-mini" title="重命名" onClick={(e) => { e.stopPropagation(); setSelected(full); setEditing({ mode: 'rename', path: full }); }}>✎</button>
+                  <button type="button" className="dshf-mini" title="删除" onClick={(e) => { e.stopPropagation(); onDelete(full); }}>🗑</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      ) : node === undefined ? null : node.entries === null ? (
         <div className="dshf-tree-hint">{node.error ? `加载失败: ${node.error}` : '加载中…'}</div>
       ) : (
         <div className="dshf-tree-list">

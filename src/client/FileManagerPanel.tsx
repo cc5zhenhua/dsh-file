@@ -68,6 +68,7 @@ export function FileManagerPanel({ remote, onClose, useSessions, onFileOpened }:
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const treeRef = useRef<TreeRef>(null);
+  const [filter, setFilter] = useState('');
 
   // Current conversation's workspace directory (SessionHeader.cwd), if any.
   const sessionCwd = useSessions
@@ -193,12 +194,24 @@ export function FileManagerPanel({ remote, onClose, useSessions, onFileOpened }:
 
       {rootError !== null && <div className="dshf-error">{rootError}</div>}
 
+      <div className="dshf-search">
+        <input
+          type="search"
+          className="dshf-search-input"
+          placeholder="搜索文件 / 目录"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label="搜索文件"
+        />
+      </div>
+
       <div className="dshf-tree-pane">
         {root !== null && (
           <FileTree
             ref={treeRef}
             remote={remote}
             root={root}
+            filter={filter}
             onOpenFile={(p) => void openFile(p)}
             onDelete={(p) => void handleDelete(p)}
             onRenamed={handleRenamed}
